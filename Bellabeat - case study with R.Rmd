@@ -1,0 +1,491 @@
+---
+title: "Bellabeat - case study with R"
+output: html_document
+date: "2025-01-31"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Scenario
+Bellabeat, a high-tech manufacturer of health-focused products for women. It has been collecting data on activity, sleep, stress, and reproductive health. The company's founder believes that an analysis of Bellabeat’s available consumer data would reveal more opportunities for growth. She has asked to analyze smart device usage data in order to gain insight into how people are already using their smart devices. Then, using this information, she would like high-level recommendations for how these trends can inform Bellabeat marketing strategy.
+
+## Business Task / Objective:
+Provide high-level recommendations to marketing team to reveal more opportunities for growth.
+
+## Steakholders:
+* Co-founder of the company.
+* Director of marketing and his team.
+
+## About the dataset
+* The data set contains personal fitness tracker from 33 users. 
+* Users consented to the submission of personal tracker data, including minute-level output for physical activity, heart rate, and sleep monitoring.
+* It includes information about daily activity, steps, and heart rate that can be used to explore users’ habits.
+* Data was collected between 4/12/2016 to 5/12/2016.
+* Datasets are available on [Kaggle] (https://www.kaggle.com/datasets/kyle007hendricks/bellabeat-dataset)
+
+## Data Analysis Framework:
+### 1. Ask Questions to Make Data-Driven Decisions
+Here are possible questions that need to be answered:
+1. What is the average number of steps taken per weekday by users?
+2. How does the total daily distance relate to the number of steps?
+3. How many users meeting the recommended 10,000 steps per day?
+4. Percentage of unique users reaching the 10K steps goal
+5. Is there a correlation between active minutes and total calories burned?
+6. What is the average sleep duration of users per weekday?
+7. Sleep Duration on Weekdays vs. Weekends
+8. Are there specific days of the week when users are more likely to be sedentary?
+9. Do users burn more calories on days they get more sleep?
+10. During which time of day are users most active?
+11. How does physical activity impact sleep duration?
+12. How many users meet sleep goal (over 7 hours) per weekday?
+13. Percentage of users meeting sleep goal (over 7 hours)
+14. Sedentary time distribution
+
+### 2. Prepare Data for Exploration:
+* Collecting and understanding the dataset structure.
+
+```{r}
+# Loading necessary packages
+library(tidyverse)
+```
+
+```{r}
+# Importing datasets
+daily_activity <- read_csv("/kaggle/input/bellabeat-dataset/Fitabase Data 4.12.16-5.12.16/dailyActivity_merged.csv")
+daily_sleep <- read_csv("/kaggle/input/bellabeat-dataset/Fitabase Data 4.12.16-5.12.16/sleepDay_merged.csv")
+steps_hourly <- read_csv("/kaggle/input/bellabeat-dataset/Fitabase Data 4.12.16-5.12.16/hourlySteps_merged.csv")
+calories_hourly <- read_csv("/kaggle/input/bellabeat-dataset/Fitabase Data 4.12.16-5.12.16/hourlyCalories_merged.csv")
+```
+
+### 3. Process Data from Dirty to Clean
+
+```{r}
+# Exploring datasets
+str(daily_activity)
+str(daily_sleep)
+str(calories_hourly)
+str(steps_hourly)
+```
+
+```{r}
+# Adding new variable UserId to convert 'Id' type from dbl to chr
+daily_activity <- daily_activity %>%
+    mutate(UserId = as.character(Id))
+
+daily_sleep <- daily_sleep %>%
+    mutate(UserId = as.character(Id))
+
+steps_hourly <- steps_hourly %>%
+    mutate(UserId = as.character(Id))
+
+calories_hourly <- calories_hourly %>%
+    mutate(UserId = as.character(Id))
+```
+
+```{r}
+# Adding new variable Date to convert 'ActivityDate' type from chr to date
+daily_activity <- daily_activity %>%
+    mutate(Date = as.Date(ActivityDate, format = ('%m/%d/%Y')))
+
+# Adding new variable Date to convert 'SleepDay' type from chr to date
+daily_sleep <- daily_sleep %>%
+    mutate(Date = as.Date(SleepDay, format = ('%m/%d/%Y')))
+
+
+steps_hourly <- steps_hourly %>%
+    mutate(timestamp = parse_date_time(ActivityHour, orders = "mdY IMSp"), Date = date(timestamp), Hour = hour(timestamp))
+
+calories_hourly <- calories_hourly %>%
+    mutate(timestamp = parse_date_time(ActivityHour, orders = "mdY IMSp"), Date = date(timestamp), Hour = hour(timestamp))
+```
+
+```{r}
+# checking for duplicates
+sum(duplicated(daily_activity))
+sum(duplicated(daily_sleep))
+sum(duplicated(steps_hourly))
+sum(duplicated(calories_hourly))
+```
+
+```{r}
+# Getting rid of duplicates
+daily_sleep <- distinct(daily_sleep)
+```
+
+```{r}
+# Checking for NA values
+sum(is.na(daily_activity))
+sum(is.na(daily_sleep))
+sum(is.na(steps_hourly))
+sum(is.na(calories_hourly))
+```
+
+```{r}
+# Checking for unique Id values
+length(unique(daily_activity$UserId))
+length(unique(daily_sleep$UserId))
+length(unique(steps_hourly$UserId))
+length(unique(calories_hourly$UserId))
+```
+
+```{r}
+# Merging datasets
+merged_activity_sleep <- merge(daily_sleep, daily_activity, by.x = c('UserId', 'Id', 'Date'), by.y = c('UserId', 'Id', 'Date'))
+merged_calories_steps <- merge(steps_hourly, calories_hourly, by.x= c('UserId', 'Date', 'Hour', 'Id', 'ActivityHour', 'timestamp'), by.y= c('UserId', 'Date', 'Hour', 'Id', 'ActivityHour', 'timestamp'))
+```
+
+```{r}
+# Adding a new variable for Weekdays
+merged_activity_sleep <- merged_activity_sleep %>%
+    mutate(weekday = factor(weekdays(Date), levels = c("Sunday","Saturday","Friday", "Thursday","Wednesday", "Tuesday", "Monday")))
+```
+
+```{r}
+# Adding Total of Active minutes
+merged_activity_sleep <- merged_activity_sleep %>%
+mutate(Total_Active_Hours = rowSums(select(., VeryActiveMinutes, FairlyActiveMinutes, LightlyActiveMinutes), na.rm = TRUE)/60)
+```
+
+```{r}
+# Checking for NA values
+sum(is.na(merged_activity_sleep))
+sum(is.na(merged_calories_steps))
+
+# Checking for duplicates
+sum(duplicated(merged_activity_sleep))
+sum(duplicated(merged_calories_steps))
+
+# Checking for unique UserId
+length(unique(merged_activity_sleep))
+length(unique(merged_calories_steps))
+```
+
+```{r}
+# At this point, we can extract new cleaned datasets and use Tableau for visualization 
+#write_csv(merged_activity_sleep, "merged_activity_sleep.csv")
+#write_csv(merged_calories_steps, "merged_calories_steps.csv")
+```
+
+```{r}
+# At this point, we can extract new cleaned datasets and use Tableau for visualization 
+#write_csv(merged_activity_sleep, "merged_activity_sleep.csv")
+#write_csv(merged_calories_steps, "merged_calories_steps.csv")
+```
+
+### 4. Analyze Data to Answer Questions
+
+```{r}
+# What is the average number of steps taken per weekday by users?
+average_daily_steps <- merged_activity_sleep %>%
+  group_by(weekday) %>%
+  summarise(Average_daily_steps = mean(TotalSteps)) 
+
+average_daily_steps%>%
+  ggplot(aes(x= weekday, y = Average_daily_steps))+
+  geom_col(fill = "royalblue")+
+  coord_flip()+
+  labs(title = "Average number of steps taken per day by users", y= "Average steps", x = "")
+```
+
+```{r}
+# How does the total daily distance relate to the number of steps?
+cor_value <- cor(merged_activity_sleep$TotalDistance, merged_activity_sleep$TotalSteps, use = "complete.obs") # Calculating correlation value.
+
+merged_activity_sleep %>%
+  ggplot(aes(x= TotalDistance, y = TotalSteps))+
+  geom_point(size = 3, shape = 21, color = "black", fill = "orange")+
+  geom_smooth(method = "lm", color = "red", se = FALSE)+
+  labs(title = " Total Distance vs Total Steps", y= "Steps", x= "Distance")+
+  annotate("text", x = max(merged_activity_sleep$TotalDistance) * 0.5, 
+             y = max(merged_activity_sleep$TotalSteps) * 0.9, 
+             label = paste("r =", round(cor_value, 2)), 
+             size = 5, color = "black") # displaying correlation value on the plot.
+```
+
+
+```{r}
+# How many users meeting the recommended 10,000 steps per day?
+Steps_Goal <- merged_activity_sleep %>%
+  filter(TotalSteps >= 10000)%>%
+  distinct(UserId, weekday)%>%
+  group_by(weekday)%>%
+  summarise(users_meeting_goal = n())
+
+ggplot(Steps_Goal) +
+  geom_col(aes(x = weekday, y= users_meeting_goal), fill = "royalblue")+ 
+  coord_flip()+
+  labs(title = " Number of users reaching 10K steps", y= "Number of users", x= "")
+
+```
+
+```{r}
+# Percentage of unique users reaching the 10K steps goal
+merged_activity_sleep<- merged_activity_sleep %>%
+  mutate(Goal_met = ifelse(TotalSteps >= 10000, 'Goal Met', 'Goal Missed'))
+
+Steps_Goal_met<- merged_activity_sleep %>%
+  group_by(Goal_met)%>%
+  summarise(unique_users = n_distinct(UserId)) %>%
+  mutate(percentage = unique_users / sum(unique_users) * 100)
+
+ggplot(Steps_Goal_met, aes(x = "", y = unique_users, fill = Goal_met)) +
+  geom_bar(stat = "identity", width = 1, color = "white") +  # Create a pie chart
+  coord_polar(theta = "y") +  # Convert to polar coordinates
+  geom_text(aes(label = paste0(round(percentage, 1), "%")), 
+            position = position_stack(vjust = 0.5), size = 5) +  # Add percentage labels
+  labs(title = "Proportion of Users Who Met vs. Missed 10,000 Steps Goal",
+       fill = "Goal Status") +
+  theme_void() +  # Remove background elements
+  scale_fill_manual(values = c("Goal Met" = "steelblue", "Goal Missed" = "red")) +
+  theme(legend.position = "right")
+
+```
+
+```{r}
+# Is there a correlation between active minutes and total calories burned?
+cor_value <- cor(merged_activity_sleep$Total_Active_Hours, merged_activity_sleep$Calories, use = "complete.obs") # Calculating correlation value.
+
+merged_activity_sleep %>%
+  ggplot(aes(x= Total_Active_Hours, y= Calories))+
+  geom_point()+
+  geom_smooth(method= lm)+
+  labs(title = "Total Active Hours vs Calories", x="Total Active Hours", y= "Calories burnt")+
+  annotate("text", x = max(merged_activity_sleep$Total_Active_Hours) * 0.3, 
+           y = max(merged_activity_sleep$Calories) * 0.9, 
+           label = paste("r =", round(cor_value, 2)), 
+           size = 5, color = "red") # displaying correlation value on the plot.
+```
+
+```{r}
+# What is the average sleep duration of users per weekday?
+average_sleep_duration <- merged_activity_sleep %>%
+  group_by(weekday) %>%
+  summarise(Average_sleep_duration = mean(TotalMinutesAsleep) / 60)  # Converting mean minutes to hours
+
+
+average_sleep_duration %>% 
+  ggplot(aes(x= weekday, y= Average_sleep_duration))+
+  geom_bar(stat = "identity", fill = "royalblue")+
+  scale_y_continuous(labels = scales::comma)+
+  coord_flip()+
+  labs(title = "Average sleep duration per weekday", y="Average Asleep Hours", x= "")
+```
+
+```{r}
+# Sleep Duration on Weekdays vs. Weekends
+merged_activity_sleep <- merged_activity_sleep %>%
+  mutate(day_type = ifelse(weekdays(Date) %in% c("Saturday", "Sunday"), "Weekend", "Weekday"))
+
+# Boxplot of sleep duration
+ggplot(merged_activity_sleep, aes(x = day_type, y = TotalMinutesAsleep, fill = day_type)) +
+  geom_boxplot() +
+  labs(title = "Sleep Duration: Weekdays vs. Weekends",
+       x = "Day Type",
+       y = "Total Sleep Minutes") +
+  theme_minimal(base_size = 14) +
+  scale_fill_manual(values = c("Weekday" = "steelblue", "Weekend" = "darkorange"))
+```
+
+```{r}
+# Are there specific days of the week when users are more likely to be sedentary?
+average_sedentary <- merged_activity_sleep %>% 
+  group_by(weekday) %>%
+  summarise(Average_Sedentary_Minutes = mean(SedentaryMinutes) / 60) # converting minutes to hours
+
+average_sedentary%>%
+  ggplot(aes(x= weekday, y= Average_Sedentary_Minutes))+
+  geom_col(fill = 'royalblue')+
+  coord_flip()+
+  labs(title = "Average sedentary hours per weekday", x="", y= "")
+```
+
+```{r}
+# Do users burn more calories on days they get more sleep?
+Sleep_claories <- merged_activity_sleep %>%
+  mutate(TotalSleepHours= TotalMinutesAsleep / 60)
+
+cor_value <- cor(Sleep_claories$TotalSleepHours, Sleep_claories$Calories, use = "complete.obs") # Calculating correlation value.
+
+Sleep_claories %>%
+  ggplot(aes(x= TotalSleepHours, y= Calories))+
+  geom_point()+
+  geom_smooth(formula = 'y ~ x', method = 'loess')+
+  labs(title = "Sleep duration vs Calories", x="Sleep Duration (in Hours)", y= "Calories burnt")+
+  annotate("text", x = max(Sleep_claories$TotalSleepHours) * 0.3, 
+           y = max(Sleep_claories$Calories) * 0.9, 
+           label = paste("r =", round(cor_value, 2)), 
+           size = 5, color = "red") # displaying correlation value on the plot.
+```
+
+```{r}
+# During which time of day are users most active?
+active_daily_trend <- merged_calories_steps%>%
+  group_by(Hour)%>%
+  mutate(average_steps_by_hour = mean(StepTotal))
+
+active_daily_trend%>%
+  ggplot(aes(x = Hour, y = average_steps_by_hour))+
+  geom_line(color = "blue", linewidth = 1.2)+
+  geom_point(color = "red", size = 2)+
+  labs(title = "User Activity Trend by Hour", x = "Hour of the Day", y= 'Average Steps')
+```
+
+```{r}
+# How does physical activity impact sleep duration?
+Sleep_activity <- merged_activity_sleep %>%
+  mutate(TotalSleepHours= TotalMinutesAsleep / 60)
+
+cor_value <- cor(Sleep_activity$TotalSleepHours, Sleep_activity$Total_Active_Hours, use = "complete.obs") # Calculating correlation value.
+
+Sleep_activity %>%
+  ggplot(aes(x= TotalSleepHours, y= Total_Active_Hours))+
+  geom_point()+
+  geom_smooth(formula = 'y ~ x', method = 'loess')+
+  labs(title = "Sleep duration vs Total activity hours", x="Sleep Duration (in Hours)", y= "Activity duration (in Hours)")+
+  annotate("text", x = max(Sleep_activity$TotalSleepHours) * 0.9, 
+           y = max(Sleep_activity$Total_Active_Hours) * 0.9, 
+           label = paste("r =", round(cor_value, 2)), 
+           size = 5, color = "red") # displaying correlation value on the plot.
+```
+
+```{r}
+# How many users meet sleep goal (over 7 hours) per weekday?
+sleep_goal <- merged_activity_sleep %>%
+  filter(TotalMinutesAsleep >= 420) %>% # filtering sleep duration over 7 hours
+  distinct(UserId, weekday)%>%
+  group_by(weekday)%>%
+  summarise(users_meeting_goal = n())
+
+sleep_goal %>%
+  ggplot()+
+  coord_flip()+
+  geom_col(aes(x= weekday, y= users_meeting_goal), fill= 'royalblue')+
+  labs(title = "Count of users meeting 7-9 hours daily sleep", y="Count of users", x= "")
+```
+
+```{r}
+# Percentage of users meeting sleep goal (over 7 hours)
+merged_activity_sleep<- merged_activity_sleep %>%
+  mutate(Sleep_goal = ifelse(TotalMinutesAsleep >= 420, 'Goal Met', 'Goal Missed'))
+
+Sleep_Goal_met<- merged_activity_sleep %>%
+  group_by(Sleep_goal)%>%
+  summarise(unique_users = n_distinct(UserId)) %>%
+  mutate(percentage = unique_users / sum(unique_users) * 100)
+
+ggplot(Sleep_Goal_met, aes(x = "", y = unique_users, fill = Sleep_goal)) +
+  geom_bar(stat = "identity", width = 1, color = "white") +  # Create a pie chart
+  coord_polar(theta = "y") +  # Convert to polar coordinates
+  geom_text(aes(label = paste0(round(percentage, 1), "%")), 
+            position = position_stack(vjust = 0.5), size = 5) +  # Add percentage labels
+  labs(title = "Proportion of Users Who Met Over 7 hours Goal",
+       fill = "Goal Status") +
+  theme_void() +  # Remove background elements
+  scale_fill_manual(values = c("Goal Met" = "steelblue", "Goal Missed" = "red")) +
+  theme(legend.position = "right")
+```
+
+```{r}
+# Sedentary time distribution
+ggplot(merged_activity_sleep, aes(x = "Sedentary Time", y = SedentaryMinutes)) +
+  geom_boxplot(fill = "lightblue", outlier.color = "red") +
+  labs(title = "Distribution of Sedentary Time (Minutes)",
+       y = "Sedentary Minutes", x = "") +
+  theme_minimal(base_size = 14)
+```
+
+### 5. Share Data Through the Art of Visualization
+* 42.5% of users meet 10K steps daily target
+```{r}
+# Percentage of unique users reaching the 10K steps goal
+merged_activity_sleep<- merged_activity_sleep %>%
+  mutate(Goal_met = ifelse(TotalSteps >= 10000, 'Goal Met', 'Goal Missed'))
+
+Steps_Goal_met<- merged_activity_sleep %>%
+  group_by(Goal_met)%>%
+  summarise(unique_users = n_distinct(UserId)) %>%
+  mutate(percentage = unique_users / sum(unique_users) * 100)
+
+ggplot(Steps_Goal_met, aes(x = "", y = unique_users, fill = Goal_met)) +
+  geom_bar(stat = "identity", width = 1, color = "white") +  # Create a pie chart
+  coord_polar(theta = "y") +  # Convert to polar coordinates
+  geom_text(aes(label = paste0(round(percentage, 1), "%")), 
+            position = position_stack(vjust = 0.5), size = 5) +  # Add percentage labels
+  labs(title = "Proportion of Users Who Met vs. Missed 10,000 Steps Goal",
+       fill = "Goal Status") +
+  theme_void() +  # Remove background elements
+  scale_fill_manual(values = c("Goal Met" = "steelblue", "Goal Missed" = "red")) +
+  theme(legend.position = "right")
+
+```
+
+* all users spend around 12 hours sedentary across all weekdays
+```{r}
+# Are there specific days of the week when users are more likely to be sedentary?
+average_sedentary <- merged_activity_sleep %>% 
+  group_by(weekday) %>%
+  summarise(Average_Sedentary_Minutes = mean(SedentaryMinutes) / 60) # converting minutes to hours
+
+average_sedentary%>%
+  ggplot(aes(x= weekday, y= Average_Sedentary_Minutes))+
+  geom_col(fill = 'royalblue')+
+  coord_flip()+
+  labs(title = "Average sedentary hours per weekday", x="", y= "")
+```
+
+* Users reach their peak steps around 5pm
+```{r}
+# During which time of day are users most active?
+active_daily_trend <- merged_calories_steps%>%
+  group_by(Hour)%>%
+  mutate(average_steps_by_hour = mean(StepTotal))
+
+active_daily_trend%>%
+  ggplot(aes(x = Hour, y = average_steps_by_hour))+
+  geom_line(color = "blue", linewidth = 1.2)+
+  geom_point(color = "red", size = 2)+
+  labs(title = "User Activity Trend by Hour", x = "Hour of the Day", y= 'Average Steps')
+```
+
+* Strong positive correlation between steps and distance
+```{r}
+# How does the total daily distance relate to the number of steps?
+cor_value <- cor(merged_activity_sleep$TotalDistance, merged_activity_sleep$TotalSteps, use = "complete.obs") # Calculating correlation value.
+
+merged_activity_sleep %>%
+  ggplot(aes(x= TotalDistance, y = TotalSteps))+
+  geom_point(size = 3, shape = 21, color = "black", fill = "orange")+
+  geom_smooth(method = "lm", color = "red", se = FALSE)+
+  labs(title = " Total Distance vs Total Steps", y= "Steps", x= "Distance")+
+  annotate("text", x = max(merged_activity_sleep$TotalDistance) * 0.5, 
+             y = max(merged_activity_sleep$TotalSteps) * 0.9, 
+             label = paste("r =", round(cor_value, 2)), 
+             size = 5, color = "black") # displaying correlation value on the plot.
+```
+
+
+### 6. The Act
+#### Recommendations based on findings:
+1. Only 42.5% of users meet the 10,000 steps/day goal.
+Recommendation:
+* Encourage step challenges to motivate users to increase their daily step count.
+* Provide in-app reminders for users falling short of the goal.
+* Suggest short walking breaks for sedentary users.
+
+2. Users spend around 12 hours sedentary across all weekdays.
+* Recommendation:
+* Introduce hourly movement reminders (e.g., "Time to stand and stretch!").
+* Suggest standing desks or walking meetings for work settings.
+
+3. Users reach their peak steps around 5 PM.
+* Recommendation:
+* Encourage evening workouts or group activities to capitalize on peak movement times.
+* Provide reminders for sustaining high step counts in the evening.
+
+4. Strong positive correlation between steps and distance.
+* Recommendation:
+* Include distance-based goals (e.g., walk 5 miles/day instead of just counting steps).
+* Add personalized distance recommendations based on step trends.
+
